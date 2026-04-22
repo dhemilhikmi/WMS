@@ -6,11 +6,30 @@ import WorkshopsPage from './pages/WorkshopsPage'
 import WorkshopDetailPage from './pages/WorkshopDetailPage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
-import DashboardPage from './pages/DashboardPage'
+import UserDashboard from './pages/UserDashboard'
+import AdminDashboard from './pages/AdminDashboard'
 
 const ProtectedRoute = ({ element }: { element: React.ReactNode }) => {
   const { isAuthenticated } = useAuth()
   return isAuthenticated ? element : <Navigate to="/login" replace />
+}
+
+const AdminRoute = ({ element }: { element: React.ReactNode }) => {
+  const { isAuthenticated, user } = useAuth()
+  return isAuthenticated && (user?.role === 'admin' || user?.role === 'moderator') ? (
+    element
+  ) : (
+    <Navigate to="/dashboard" replace />
+  )
+}
+
+const RoleDashboard = () => {
+  const { user } = useAuth()
+
+  if (user?.role === 'admin' || user?.role === 'moderator') {
+    return <AdminDashboard />
+  }
+  return <UserDashboard />
 }
 
 function AppContent() {
@@ -34,7 +53,11 @@ function AppContent() {
           />
           <Route
             path="/dashboard"
-            element={<ProtectedRoute element={<DashboardPage />} />}
+            element={<ProtectedRoute element={<RoleDashboard />} />}
+          />
+          <Route
+            path="/admin"
+            element={<AdminRoute element={<AdminDashboard />} />}
           />
         </Route>
       </Routes>
