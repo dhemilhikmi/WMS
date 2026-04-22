@@ -1,0 +1,21 @@
+{
+  "name": "workshop-management-system",
+  "version": "1.0.0",
+  "description": "Multi-tenant workshop management system",
+  "private": true,
+  "scripts": {
+    "install:all": "pnpm install && cd api && pnpm install && cd ../web && pnpm install && cd ..",
+    "dev": "concurrently \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:api": "cd api && pnpm dev",
+    "dev:web": "cd web && pnpm dev",
+    "build": "npm run build:api && npm run build:web",
+    "build:api": "cd api && pnpm build",
+    "build:web": "cd web && pnpm build",
+    "test": "npm run test:api && npm run test:web",
+    "test:api": "cd api && pnpm test",
+    "test:web": "cd web && pnpm test"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  }
+}

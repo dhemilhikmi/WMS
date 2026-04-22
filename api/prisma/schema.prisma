@@ -1,0 +1,93 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Tenant model - represents an organization
+model Tenant {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  email     String   @unique
+  logo      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users       User[]
+  workshops   Workshop[]
+  registrations Registration[]
+}
+
+// User model
+model User {
+  id            String    @id @default(cuid())
+  email         String
+  name          String
+  password      String
+  role          String    @default("member")  // admin, moderator, member
+  avatar        String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  tenantId      String
+  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  registrations Registration[]
+
+  @@unique([email, tenantId])
+  @@index([tenantId])
+}
+
+// Workshop model
+model Workshop {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  content     String?
+  startDate   DateTime
+  endDate     DateTime
+  location    String?
+  maxCapacity Int       @default(30)
+  status      String    @default("draft")  // draft, published, ongoing, completed, cancelled
+  image       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  tenantId    String
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  registrations Registration[]
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([startDate])
+}
+
+// Registration model
+model Registration {
+  id          String    @id @default(cuid())
+  status      String    @default("pending")  // pending, confirmed, cancelled, completed
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  workshopId  String
+  workshop    Workshop  @relation(fields: [workshopId], references: [id], onDelete: Cascade)
+
+  tenantId    String
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workshopId])
+  @@index([tenantId])
+  @@index([userId])
+  @@index([workshopId])
+  @@index([status])
+}
