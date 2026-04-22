@@ -17,20 +17,20 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Tenant middleware - extract tenant from subdomain
-app.use((req: Request, res: Response, next: NextFunction) => {
-  const host = req.get('host') || '';
+app.use((_req: Request, _res: Response, next: NextFunction) => {
+  const host = _req.get('host') || '';
   const parts = host.split('.');
 
   if (parts.length > 2 || (parts.length === 2 && parts[0] !== 'localhost')) {
     const tenant = parts[0];
-    (req as any).tenant = tenant;
+    (_req as any).tenant = tenant;
   }
 
   next();
 });
 
 // Health check endpoint
-app.get('/health', (req: Request, res: Response) => {
+app.get('/health', (_req: Request, res: Response) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
@@ -49,7 +49,7 @@ app.use((req: Request, res: Response) => {
 });
 
 // Error Handler
-app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
   console.error(err);
 
   res.status(err.status || 500).json({
