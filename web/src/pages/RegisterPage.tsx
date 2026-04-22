@@ -48,7 +48,9 @@ export default function RegisterPage() {
       login(userData.user, userData.tenant, userData.token)
       navigate('/workshops')
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Registration failed')
+      console.error('Register error:', err);
+      const message = err.response?.data?.message || err.message || 'Registration failed';
+      setError(message);
     } finally {
       setLoading(false)
     }

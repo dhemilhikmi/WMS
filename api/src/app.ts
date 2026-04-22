@@ -2,6 +2,9 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
+import authRoutes from './routes/auth';
+import workshopsRoutes from './routes/workshops';
+import registrationsRoutes from './routes/registrations';
 
 dotenv.config();
 
@@ -10,7 +13,16 @@ const app = express();
 // Middleware
 app.use(helmet());
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3001',
+  origin: (origin, callback) => {
+    // Allow all localhost origins for development
+    if (!origin || origin.startsWith('http://localhost') || origin.startsWith('http://127.0.0.1')) {
+      callback(null, true);
+    } else if (process.env.FRONTEND_URL && origin === process.env.FRONTEND_URL) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
 }));
 app.use(express.json());
@@ -34,10 +46,10 @@ app.get('/health', (_req: Request, res: Response) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// API Routes (to be implemented)
-app.use('/api/auth', require('./routes/auth').default || {});
-app.use('/api/workshops', require('./routes/workshops').default || {});
-app.use('/api/registrations', require('./routes/registrations').default || {});
+// API Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/workshops', workshopsRoutes);
+app.use('/api/registrations', registrationsRoutes);
 
 // 404 Handler
 app.use((req: Request, res: Response) => {
