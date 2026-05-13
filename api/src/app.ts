@@ -29,6 +29,14 @@ import { requireFeature } from './middleware/featureGate';
 dotenv.config();
 
 const app = express();
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  process.env.MAIN_DOMAIN && `https://${process.env.MAIN_DOMAIN}`,
+  process.env.ROOT_DOMAIN && `https://${process.env.ROOT_DOMAIN}`,
+  'https://workshopmu.web.app',
+  'https://workshopmu.com',
+  'https://www.workshopmu.com',
+].filter(Boolean);
 
 // Middleware
 app.use(helmet());
@@ -37,7 +45,7 @@ app.use(cors({
     // Allow localhost and private LAN origins for development
     if (!origin || origin.startsWith('http://localhost') || origin.startsWith('http://127.0.0.1') || /^http:\/\/(192\.168\.|10\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(origin)) {
       callback(null, true);
-    } else if (process.env.FRONTEND_URL && origin === process.env.FRONTEND_URL) {
+    } else if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
