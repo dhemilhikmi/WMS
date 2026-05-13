@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import prisma from '../lib/prisma';
+import { isSmtpConfigured } from '../services/email';
 
 const router = Router();
 
@@ -634,13 +635,8 @@ router.get('/system-status', async (_req: Request, res: Response): Promise<void>
     dbStatus = 'error';
   }
 
-  // Check SMTP config
-  const smtpConfigured = !!(
-    process.env.SMTP_HOST &&
-    process.env.SMTP_PORT &&
-    process.env.SMTP_USER &&
-    process.env.SMTP_PASS
-  );
+  // Check SMTP config from platform settings, not only process env.
+  const smtpConfigured = await isSmtpConfigured();
 
   // Check Midtrans config
   const midtransConfigured = !!(
