@@ -88,13 +88,27 @@ async function main() {
     count('user');
   }
 
-  for (const row of data.tenantData.workshop || []) {
-    const tenantId = tenantMap.get(row.tenantId);
-    if (!tenantId) continue;
-    const parentId = row.parentId ? workshopMap.get(row.parentId) || row.parentId : null;
-    const saved = await upsertById('workshop', { ...row, tenantId, parentId });
-    workshopMap.set(row.id, saved.id);
-    count('workshop');
+  const pendingWorkshops = [...(data.tenantData.workshop || [])];
+  while (pendingWorkshops.length > 0) {
+    const remaining = [];
+    let imported = 0;
+    for (const row of pendingWorkshops) {
+      const tenantId = tenantMap.get(row.tenantId);
+      if (!tenantId) continue;
+      if (row.parentId && !workshopMap.has(row.parentId)) {
+        remaining.push(row);
+        continue;
+      }
+      const parentId = row.parentId ? workshopMap.get(row.parentId) : null;
+      const saved = await upsertById('workshop', { ...row, tenantId, parentId });
+      workshopMap.set(row.id, saved.id);
+      count('workshop');
+      imported += 1;
+    }
+    if (imported === 0 && remaining.length > 0) {
+      throw new Error(`Unable to resolve workshop parent references: ${remaining.map((w) => w.id).join(', ')}`);
+    }
+    pendingWorkshops.splice(0, pendingWorkshops.length, ...remaining);
   }
 
   for (const row of data.tenantData.customer || []) {
