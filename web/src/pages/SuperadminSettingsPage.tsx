@@ -18,6 +18,7 @@ export default function SuperadminSettingsPage() {
   const [msgType, setMsgType] = useState<'ok' | 'err'>('ok')
   const [testEmail, setTestEmail] = useState('')
   const [testLoading, setTestLoading] = useState(false)
+  const [testResult, setTestResult] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
 
   useEffect(() => {
     settingsAPI.get()
@@ -38,7 +39,7 @@ export default function SuperadminSettingsPage() {
     setSaving(true)
     try {
       await settingsAPI.update(smtp)
-      showMsg('Pengaturan berhasil disimpan.', 'ok')
+      showMsg('Pengaturan berhasil disimpan. Gunakan Kirim Email Tes untuk validasi SMTP.', 'ok')
     } catch (err: any) {
       showMsg(err.response?.data?.message || 'Gagal menyimpan pengaturan.', 'err')
     } finally { setSaving(false) }
@@ -47,11 +48,16 @@ export default function SuperadminSettingsPage() {
   const handleTestEmail = async () => {
     if (!testEmail) { showMsg('Masukkan alamat email tujuan tes.', 'err'); return }
     setTestLoading(true)
+    setTestResult(null)
     try {
       await settingsAPI.testEmail(testEmail)
-      showMsg(`Email tes berhasil dikirim ke ${testEmail}`, 'ok')
+      const text = `Email tes berhasil dikirim ke ${testEmail}. Cek Inbox atau Spam/Junk folder.`
+      setTestResult({ type: 'ok', text })
+      showMsg(text, 'ok')
     } catch (err: any) {
-      showMsg(err.response?.data?.message || 'Gagal mengirim email tes.', 'err')
+      const text = err.response?.data?.message || 'Gagal mengirim email tes. Cek host, port, username, password, dan enkripsi SMTP.'
+      setTestResult({ type: 'err', text })
+      showMsg(text, 'err')
     } finally { setTestLoading(false) }
   }
 
@@ -115,7 +121,7 @@ export default function SuperadminSettingsPage() {
 
       {/* Message */}
       {message && (
-        <div className={`flex items-center gap-2 text-sm font-medium px-4 py-3 rounded-xl border ${msgType === 'ok' ? 'bg-[#f0fdf4] border-[#bbf7d0] text-[#15803d]' : 'bg-[#fef2f2] border-[#fecaca] text-[#b91c1c]'}`}>
+        <div className={`flex items-start gap-3 rounded-xl border px-5 py-4 shadow-sm ${msgType === 'ok' ? 'bg-[#ecfdf5] border-[#86efac] text-[#166534]' : 'bg-[#fef2f2] border-[#fca5a5] text-[#991b1b]'}`}>
           <span>{msgType === 'ok' ? '✓' : '!'}</span> {message}
         </div>
       )}
@@ -213,6 +219,11 @@ export default function SuperadminSettingsPage() {
           </div>
           {!smtpConfigured && (
             <p className="text-[11px] text-[#f59e0b]">⚠ SMTP belum dikonfigurasi. Isi dan simpan form di atas terlebih dahulu.</p>
+          )}
+          {testResult && (
+            <div className={`rounded-xl border px-4 py-3 text-sm font-semibold ${testResult.type === 'ok' ? 'border-[#86efac] bg-[#ecfdf5] text-[#166534]' : 'border-[#fca5a5] bg-[#fef2f2] text-[#991b1b]'}`}>
+              {testResult.text}
+            </div>
           )}
         </div>
       </div>
