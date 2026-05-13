@@ -254,18 +254,22 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const user = await prisma.user.findFirst({
+    const users = await prisma.user.findMany({
       where: { email },
       include: { tenant: true },
     });
 
-    if (!user) {
-      res.status(401).json({ success: false, message: 'Email atau password salah' });
-      return;
+    let user = null;
+    for (const candidate of users) {
+      if (typeof candidate.password !== 'string') continue;
+      const passwordMatch = await bcrypt.compare(password, candidate.password);
+      if (passwordMatch) {
+        user = candidate;
+        break;
+      }
     }
 
-    const passwordMatch = await bcrypt.compare(password, user.password);
-    if (!passwordMatch) {
+    if (!user) {
       res.status(401).json({ success: false, message: 'Email atau password salah' });
       return;
     }
