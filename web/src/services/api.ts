@@ -79,6 +79,9 @@ export const authAPI = {
 
   resetPassword: (data: { token: string; password: string }) =>
     api.post('/api/auth/reset-password', data),
+
+  changePassword: (data: { currentPassword: string; newPassword: string }) =>
+    api.post('/api/auth/change-password', data),
 };
 
 // Workshops API

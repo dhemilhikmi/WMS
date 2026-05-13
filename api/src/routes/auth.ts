@@ -3,6 +3,7 @@ import * as jwt from 'jsonwebtoken';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
 import prisma from '../lib/prisma';
+import { verifyToken } from '../middleware/auth';
 import { isSmtpConfigured, sendPasswordResetEmail, sendVerificationEmail } from '../services/email';
 import { createPaymentOrder } from '../services/midtrans';
 import { JWT_SECRET, JWT_EXPIRY, PAYMENT_ENABLED } from '../config';
@@ -390,6 +391,48 @@ router.post('/reset-password', async (req: Request, res: Response): Promise<void
     res.json({ success: true, message: 'Password berhasil diubah. Silakan login kembali.' });
   } catch (err: any) {
     console.error('Reset password error:', err);
+    res.status(500).json({
+      success: false,
+      message: err.message || 'Gagal mengubah password',
+    });
+  }
+});
+
+router.post('/change-password', verifyToken, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const currentPassword = String(req.body.currentPassword || '');
+    const newPassword = String(req.body.newPassword || '');
+
+    if (!currentPassword || newPassword.length < 8) {
+      res.status(400).json({ success: false, message: 'Password lama dan password baru minimal 8 karakter wajib diisi' });
+      return;
+    }
+
+    if (currentPassword === newPassword) {
+      res.status(400).json({ success: false, message: 'Password baru tidak boleh sama dengan password lama' });
+      return;
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: req.user!.userId } });
+    if (!user || typeof user.password !== 'string') {
+      res.status(404).json({ success: false, message: 'User tidak ditemukan' });
+      return;
+    }
+
+    const passwordMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!passwordMatch) {
+      res.status(401).json({ success: false, message: 'Password lama tidak sesuai' });
+      return;
+    }
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { password: await bcrypt.hash(newPassword, BCRYPT_ROUNDS) },
+    });
+
+    res.json({ success: true, message: 'Password berhasil diubah. Silakan login kembali.' });
+  } catch (err: any) {
+    console.error('Change password error:', err);
     res.status(500).json({
       success: false,
       message: err.message || 'Gagal mengubah password',

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { tenantSettingsAPI } from '../services/api'
 import { useAuth } from '../context/AuthContext'
+import ChangePasswordForm from '../components/ChangePasswordForm'
 
 export default function WorkshopSettingsPage({ view = 'settings' }: { view?: 'settings' | 'license' }) {
   const { tenant, updateTenant } = useAuth()
@@ -141,6 +142,15 @@ export default function WorkshopSettingsPage({ view = 'settings' }: { view?: 'se
           </>
         )}
       </form>
+      {view === 'settings' && (
+        <div className="mt-5 rounded-lg border border-[#e2e8f0] bg-white p-5">
+          <p className="text-sm font-bold text-[#111] mb-1">Keamanan Akun</p>
+          <p className="text-[11px] text-[#888] mb-4">
+            Ubah password akun yang sedang login. Setelah berhasil, Anda akan diminta login ulang.
+          </p>
+          <ChangePasswordForm />
+        </div>
+      )}
     </div>
   )
 }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { tenantSettingsAPI } from '../../services/api'
+import ChangePasswordForm from '../../components/ChangePasswordForm'
 import { MobileSubHeader } from '../MobileLayout'
 
 const inputCls = 'w-full rounded-xl border border-[#cbd5e1] bg-white px-3 py-2.5 text-[13px] text-ink outline-none focus:border-[#1E4FD8]'
@@ -109,6 +110,13 @@ export default function MobileSettings() {
               </button>
             ))}
           </div>
+        </section>
+        <section className="rounded-2xl border border-wm-line bg-white p-4 space-y-3">
+          <div>
+            <p className="text-[13px] font-bold text-ink">Keamanan Akun</p>
+            <p className={helpCls}>Ubah password akun yang sedang login.</p>
+          </div>
+          <ChangePasswordForm variant="mobile" />
         </section>
         <button onClick={save} disabled={saving} className="w-full rounded-2xl bg-brand py-3 text-[14px] font-bold text-white disabled:opacity-60">
           {saving ? 'Menyimpan...' : 'Simpan Pengaturan'}
