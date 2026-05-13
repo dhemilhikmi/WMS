@@ -123,7 +123,7 @@ gcloud run deploy "${API_SERVICE}" \
   --concurrency=10 \
   --add-cloudsql-instances="${INSTANCE_CONNECTION_NAME}" \
   --set-secrets="DATABASE_URL=wms-database-url-pre:latest,JWT_SECRET=wms-jwt-secret-pre:latest" \
-  --set-env-vars="NODE_ENV=production,PORT=8080,API_PORT=8080,JWT_EXPIRY=7d,FRONTEND_URL=${FRONTEND_URL},PAYMENT_ENABLED=${PAYMENT_ENABLED},ROOT_DOMAIN=${PROJECT_ID}.web.app,MAIN_DOMAIN=${PROJECT_ID}.web.app"
+  --set-env-vars="NODE_ENV=production,JWT_EXPIRY=7d,FRONTEND_URL=${FRONTEND_URL},PAYMENT_ENABLED=${PAYMENT_ENABLED},ROOT_DOMAIN=${PROJECT_ID}.web.app,MAIN_DOMAIN=${PROJECT_ID}.web.app"
 
 API_URL="$(gcloud run services describe "${API_SERVICE}" --region="${REGION}" --format='value(status.url)')"
 echo "API URL: ${API_URL}"
