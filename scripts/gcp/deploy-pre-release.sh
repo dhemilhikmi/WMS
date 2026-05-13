@@ -105,6 +105,15 @@ echo "Writing secrets to Secret Manager..."
 upsert_secret "wms-database-url-pre" "${DATABASE_URL}"
 upsert_secret "wms-jwt-secret-pre" "${JWT_SECRET}"
 
+PROJECT_NUMBER="$(gcloud projects describe "${PROJECT_ID}" --format='value(projectNumber)')"
+RUNTIME_SERVICE_ACCOUNT="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+
+echo "Granting runtime service account access to Secret Manager..."
+gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
+  --member="serviceAccount:${RUNTIME_SERVICE_ACCOUNT}" \
+  --role="roles/secretmanager.secretAccessor" \
+  --quiet >/dev/null
+
 IMAGE_URI="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${IMAGE_NAME}:pre-release"
 
 echo "Building and pushing API image..."
