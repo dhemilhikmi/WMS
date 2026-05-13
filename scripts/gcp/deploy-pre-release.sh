@@ -148,7 +148,7 @@ gcloud run jobs create "${MIGRATION_JOB}" \
   --memory=512Mi \
   --cpu=1 \
   --max-retries=1 \
-  --add-cloudsql-instances="${INSTANCE_CONNECTION_NAME}" \
+  --set-cloudsql-instances="${INSTANCE_CONNECTION_NAME}" \
   --set-secrets="DATABASE_URL=wms-database-url-pre:latest,JWT_SECRET=wms-jwt-secret-pre:latest" \
   --set-env-vars="NODE_ENV=production,PAYMENT_ENABLED=${PAYMENT_ENABLED}" \
   --command=npm \
