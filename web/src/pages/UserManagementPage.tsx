@@ -110,6 +110,12 @@ export default function UserManagementPage() {
     try {
       if (editingId) {
         // edit not in original API — show success for now
+        await usersAPI.update(editingId, {
+          name: formData.name,
+          role: formData.role,
+          tenantId: tenant.id,
+          ...(formData.password ? { password: formData.password } : {}),
+        })
         setSuccess(`User ${formData.name} diperbarui`)
       } else {
         await usersAPI.create({ name: formData.name, email: formData.email, password: formData.password, role: formData.role, tenantId: tenant.id })

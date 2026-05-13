@@ -4,7 +4,7 @@ import prisma from '../lib/prisma';
 
 const router = Router();
 const BCRYPT_ROUNDS = 12;
-const ALLOWED_ROLES = ['user', 'moderator', 'admin'];
+const ALLOWED_ROLES = ['user', 'member', 'moderator', 'admin'];
 
 function canManageUsers(req: Request): boolean {
   return req.user?.role === 'admin' || req.user?.role === 'superadmin';
@@ -80,7 +80,7 @@ router.put('/:id', async (req: Request, res: Response): Promise<void> => {
     }
 
     const tenantId = req.user!.tenantId;
-    const { name, role } = req.body;
+    const { name, role, password } = req.body;
 
     const user = await prisma.user.findFirst({ where: { id: req.params.id, tenantId } });
     if (!user) {
@@ -88,11 +88,18 @@ router.put('/:id', async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const updateData: { name?: string; role?: string } = {};
+    const updateData: { name?: string; role?: string; password?: string } = {};
     if (name !== undefined) updateData.name = name;
     if (role !== undefined) {
       if (!validateRole(req, res, role)) return;
       updateData.role = role;
+    }
+    if (password !== undefined && password !== '') {
+      if (typeof password !== 'string' || password.length < 8) {
+        res.status(400).json({ success: false, message: 'Password minimal 8 karakter' });
+        return;
+      }
+      updateData.password = await bcrypt.hash(password, BCRYPT_ROUNDS);
     }
 
     const updated = await prisma.user.update({

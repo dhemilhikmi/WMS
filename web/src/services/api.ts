@@ -185,7 +185,7 @@ export const usersAPI = {
     tenantId: string;
   }) => api.post('/api/users', data),
 
-  update: (id: string, data: { tenantId: string; name?: string; role?: string }) =>
+  update: (id: string, data: { tenantId: string; name?: string; role?: string; password?: string }) =>
     api.put(`/api/users/${id}`, data),
 
   delete: (id: string, tenantId: string) =>
