@@ -73,6 +73,12 @@ export const authAPI = {
 
   resendVerification: (email: string) =>
     api.post('/api/auth/resend-verification', { email }),
+
+  forgotPassword: (email: string) =>
+    api.post('/api/auth/forgot-password', { email }),
+
+  resetPassword: (data: { token: string; password: string }) =>
+    api.post('/api/auth/reset-password', data),
 };
 
 // Workshops API

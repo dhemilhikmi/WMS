@@ -4,6 +4,8 @@ import Layout from './components/Layout'
 import AdminLayout from './components/AdminLayout'
 import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
+import ForgotPasswordPage from './pages/ForgotPasswordPage'
+import ResetPasswordPage from './pages/ResetPasswordPage'
 import RegisterPage from './pages/RegisterPage'
 import EmailSentPage from './pages/EmailSentPage'
 import VerifyEmailPage from './pages/VerifyEmailPage'
@@ -99,7 +101,7 @@ function MobileRedirect() {
     // Only redirect /admin/* and /dashboard, never /m/* or auth pages
     const path = location.pathname
     if (location.search.includes('desktop=1')) return
-    if (path.startsWith('/m/') || path.startsWith('/login') || path.startsWith('/register') || path.startsWith('/verify') || path.startsWith('/email-sent') || path === '/') return
+    if (path.startsWith('/m/') || path.startsWith('/login') || path.startsWith('/forgot-password') || path.startsWith('/reset-password') || path.startsWith('/register') || path.startsWith('/verify') || path.startsWith('/email-sent') || path === '/') return
     if (shouldUseMobile()) {
       const mobile = desktopToMobilePath(path)
       const search = location.search || ''
@@ -117,6 +119,8 @@ function AppRoutes() {
     <MobileRedirect />
     <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/email-sent" element={<EmailSentPage />} />
         <Route path="/verify-email" element={<VerifyEmailPage />} />

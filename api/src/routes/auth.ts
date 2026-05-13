@@ -3,7 +3,7 @@ import * as jwt from 'jsonwebtoken';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
 import prisma from '../lib/prisma';
-import { isSmtpConfigured, sendVerificationEmail } from '../services/email';
+import { isSmtpConfigured, sendPasswordResetEmail, sendVerificationEmail } from '../services/email';
 import { createPaymentOrder } from '../services/midtrans';
 import { JWT_SECRET, JWT_EXPIRY, PAYMENT_ENABLED } from '../config';
 
@@ -178,7 +178,7 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
         emailDeliveryFailed = true;
         // Fall through: emailSent = false, emailVerifiedNow = true
         emailVerifiedNow = true;
-        await prisma.user.update({
+        await (prisma.user as any).update({
           where: { id: user.id },
           data: { emailVerified: true, verificationToken: null, verificationTokenExpiry: null },
         });
@@ -311,6 +311,88 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
     res.status(500).json({
       success: false,
       message: err.message || 'Login failed',
+    });
+  }
+});
+
+router.post('/forgot-password', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const email = String(req.body.email || '').trim();
+    if (!email) {
+      res.status(400).json({ success: false, message: 'Email wajib diisi' });
+      return;
+    }
+
+    const users = await prisma.user.findMany({
+      where: { email },
+      include: { tenant: true },
+    });
+
+    const smtpReady = await isSmtpConfigured();
+    if (smtpReady && users.length > 0) {
+      await Promise.all(users.map(async (user) => {
+        const resetToken = crypto.randomBytes(32).toString('hex');
+        const resetPasswordTokenExpiry = new Date(Date.now() + 60 * 60 * 1000);
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { resetPasswordToken: resetToken, resetPasswordTokenExpiry },
+        });
+        await sendPasswordResetEmail(user.email, user.name, resetToken);
+      }));
+    }
+
+    res.json({
+      success: true,
+      message: 'Jika email terdaftar, instruksi reset password akan dikirim.',
+      emailDeliveryAvailable: smtpReady,
+    });
+  } catch (err: any) {
+    console.error('Forgot password error:', err);
+    res.status(500).json({
+      success: false,
+      message: err.message || 'Gagal memproses reset password',
+    });
+  }
+});
+
+router.post('/reset-password', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const token = String(req.body.token || '').trim();
+    const password = String(req.body.password || '');
+
+    if (!token || password.length < 8) {
+      res.status(400).json({ success: false, message: 'Token dan password minimal 8 karakter wajib diisi' });
+      return;
+    }
+
+    const user = await (prisma.user as any).findFirst({
+      where: {
+        resetPasswordToken: token,
+        resetPasswordTokenExpiry: { gt: new Date() },
+      },
+    });
+
+    if (!user) {
+      res.status(400).json({ success: false, message: 'Token reset password tidak valid atau sudah kadaluarsa' });
+      return;
+    }
+
+    await (prisma.user as any).update({
+      where: { id: user.id },
+      data: {
+        password: await bcrypt.hash(password, BCRYPT_ROUNDS),
+        resetPasswordToken: null,
+        resetPasswordTokenExpiry: null,
+        emailVerified: true,
+      },
+    });
+
+    res.json({ success: true, message: 'Password berhasil diubah. Silakan login kembali.' });
+  } catch (err: any) {
+    console.error('Reset password error:', err);
+    res.status(500).json({
+      success: false,
+      message: err.message || 'Gagal mengubah password',
     });
   }
 });

@@ -104,6 +104,49 @@ export async function sendVerificationEmail(
   });
 }
 
+export async function sendPasswordResetEmail(
+  toEmail: string,
+  toName: string,
+  resetToken: string
+): Promise<void> {
+  const config = await getSmtpConfig();
+
+  const transporter = nodemailer.createTransport({
+    host: config.smtp_host,
+    port: parseInt(config.smtp_port, 10),
+    secure: config.smtp_secure === 'true',
+    auth: {
+      user: config.smtp_user,
+      pass: config.smtp_pass,
+    },
+  });
+
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}`;
+  const fromName = config.smtp_from_name || 'WorkshopMu';
+  const fromEmail = config.smtp_from_email || config.smtp_user;
+
+  await transporter.sendMail({
+    from: `"${fromName}" <${fromEmail}>`,
+    to: toEmail,
+    subject: 'Reset password WorkshopMu',
+    html: `
+      <div style="font-family: Arial, sans-serif; padding: 24px; max-width: 520px; margin: 0 auto;">
+        <h2 style="color: #1f2937;">Reset password WorkshopMu</h2>
+        <p>Hi ${toName || 'Admin'},</p>
+        <p>Kami menerima permintaan reset password untuk akun Anda.</p>
+        <p style="margin: 28px 0;">
+          <a href="${resetUrl}" style="background:#2563eb;color:#fff;text-decoration:none;padding:12px 20px;border-radius:6px;font-weight:bold;">
+            Reset Password
+          </a>
+        </p>
+        <p style="color:#6b7280;font-size:13px;">Link ini berlaku selama 1 jam. Abaikan email ini jika Anda tidak meminta reset password.</p>
+        <p style="color:#9ca3af;font-size:12px;word-break:break-all;">${resetUrl}</p>
+      </div>
+    `,
+  });
+}
+
 export async function sendTestEmail(toEmail: string): Promise<void> {
   const config = await getSmtpConfig();
 

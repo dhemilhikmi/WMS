@@ -74,6 +74,12 @@ export default function LoginPage() {
           </div>
         )}
 
+        {searchParams.get('reset') === 'success' && (
+          <div className="mb-4 p-3 bg-green-100 text-green-700 rounded-wm-md text-sm">
+            Password berhasil diubah. Silakan login dengan password baru.
+          </div>
+        )}
+
         {error && !emailNotVerified && (
           <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-wm-md text-sm">
             {error}
@@ -127,6 +133,11 @@ export default function LoginPage() {
             {loading ? 'Masuk...' : 'Masuk'}
           </button>
         </form>
+
+        <div className="mt-4 flex items-center justify-between text-sm">
+          <Link to="/forgot-password" className="font-semibold text-brand hover:underline">Lupa password?</Link>
+          <a href="mailto:support@workshopmu.com" className="font-semibold text-brand hover:underline">Contact us</a>
+        </div>
 
         <p className="text-center text-ink-3 text-sm mt-5">
           Belum punya akun? <Link to="/register" className="text-brand font-semibold hover:underline">Daftar</Link>
