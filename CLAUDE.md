@@ -149,7 +149,7 @@ pnpm prisma migrate reset
 ### Frontend (Vercel)
 1. Push code to GitHub
 2. Connect repo to Vercel
-3. Set `REACT_APP_API_URL` environment variable
+3. Set `VITE_API_URL` environment variable
 4. Deploy with custom domain
 
 ### Multi-Tenancy Subdomains
@@ -190,7 +190,7 @@ API_URL=http://localhost:3000
 
 # Frontend
 FRONTEND_URL=http://localhost:3001
-REACT_APP_API_URL=http://localhost:3000
+VITE_API_URL=http://localhost:3000
 
 # Security
 JWT_SECRET=change-me-in-production

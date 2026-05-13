@@ -10,41 +10,63 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Tenant model - represents an organization
+// Tenant model - represents a workshop/bengkel
 model Tenant {
   id        String   @id @default(cuid())
   name      String
   slug      String   @unique
   email     String   @unique
+  phone     String?
+  address   String?
   logo      String?
+  isActive  Boolean  @default(false)  // false until admin verifies email
+  plan      String   @default("free")  // 'free' | 'pro'
+  planExpiry DateTime?
+  partnerType String?                  // 'standard' | 'ppf_partner' | 'reseller'
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   users       User[]
+  customers   Customer[]
   workshops   Workshop[]
   registrations Registration[]
+  features    TenantFeature[]
+  subscription TenantSubscription?
+  inventory   Inventory[]
+  suppliers   Supplier[]
+  purchaseOrders PurchaseOrder[]
+  expenses    Expense[]
+  serviceMaterials ServiceMaterial[]
+  settings         TenantSetting[]
+  warranties       Warranty[]
+  teknisi          Teknisi[]
+  inventoryLogs    InventoryLog[]
+  inventoryBatches InventoryBatch[]
 }
 
 // User model
 model User {
-  id            String    @id @default(cuid())
-  email         String
-  name          String
-  password      String
-  role          String    @default("member")  // admin, moderator, member
-  avatar        String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id                      String    @id @default(cuid())
+  email                   String
+  name                    String
+  password                String
+  role                    String    @default("member")  // admin, moderator, member
+  avatar                  String?
+  emailVerified           Boolean   @default(false)
+  verificationToken       String?
+  verificationTokenExpiry DateTime?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 
   tenantId      String
   tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  registrations Registration[]
 
   @@unique([email, tenantId])
   @@index([tenantId])
+  @@index([verificationToken])
 }
 
-// Workshop model
+// Workshop model - represents a service (e.g., car wash, detailing, service)
 model Workshop {
   id          String    @id @default(cuid())
   title       String
@@ -56,38 +78,367 @@ model Workshop {
   maxCapacity Int       @default(30)
   status      String    @default("draft")  // draft, published, ongoing, completed, cancelled
   image       String?
+  price       Decimal   @default(0)  // service price
+  duration    Int?      // duration in minutes
+  type        String    @default("main_service")  // main_service, sub_service
+  parentId    String?   // for sub-services, reference to parent workshop
+  notes       String?   // misc metadata e.g. jasa:50000
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
   tenantId    String
   tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  parent      Workshop? @relation("SubServices", fields: [parentId], references: [id], onDelete: Cascade)
+  subServices Workshop[] @relation("SubServices")
   registrations Registration[]
+  materials    ServiceMaterial[]
+  warranties   Warranty[]
 
   @@index([tenantId])
   @@index([status])
   @@index([startDate])
+  @@index([parentId])
 }
 
-// Registration model
-model Registration {
-  id          String    @id @default(cuid())
-  status      String    @default("pending")  // pending, confirmed, cancelled, completed
-  notes       String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+// Customer model - represents actual customers of the workshop/bengkel
+model Customer {
+  id        String   @id @default(cuid())
+  satuan    String   @default("Ibu")  // Bapak or Ibu
+  name      String
+  address   String?
+  phone     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  userId      String
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenantId    String
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  registrations Registration[]
+  warranties  Warranty[]
+
+  @@unique([phone, tenantId])
+  @@index([tenantId])
+  @@index([phone])
+}
+
+// Registration model - represents each visit/registration
+model Registration {
+  id            String    @id @default(cuid())
+  status        String    @default("pending")  // pending, confirmed, cancelled, completed
+  notes         String?
+  scheduledDate DateTime? // Tanggal dan jam kunjungan pelanggan
+  vehicleType    String?   // mobil atau motor
+  vehicleBrand   String?   // merek kendaraan, e.g. Toyota, Honda
+  vehicleName    String?   // nama/model kendaraan
+  licensePlate   String?   // plat nomor
+  paymentStatus  String?   // lunas, pending, overdue
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  customerId  String
+  customer    Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
   workshopId  String
   workshop    Workshop  @relation(fields: [workshopId], references: [id], onDelete: Cascade)
 
   tenantId    String
   tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  warranty    Warranty?
 
-  @@unique([userId, workshopId])
   @@index([tenantId])
-  @@index([userId])
+  @@index([customerId])
   @@index([workshopId])
   @@index([status])
+}
+
+// Feature model - represents a module/feature that can be enabled/disabled per tenant
+model Feature {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  displayName String
+  description String?
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenantFeatures TenantFeature[]
+}
+
+// TenantFeature model - junction table for tenant-specific feature toggles
+model TenantFeature {
+  id        String   @id @default(cuid())
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId  String
+  featureId String
+
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  feature   Feature  @relation(fields: [featureId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, featureId])
+  @@index([tenantId])
+  @@index([featureId])
+}
+
+// Subscription Plan model - represents different tier plans
+model SubscriptionPlan {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  price       Decimal  @default(0)
+  maxUsers    Int      @default(5)
+  maxServices Int      @default(10)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  subscriptions TenantSubscription[]
+}
+
+// Tenant Subscription model - tracks subscription status per tenant
+model TenantSubscription {
+  id        String   @id @default(cuid())
+  status    String   @default("pending")  // pending, paid, active, suspended, expired, cancelled
+  startDate DateTime @default(now())
+  endDate   DateTime?
+  notes     String?
+
+  // Payment tracking
+  paymentOrderId  String?         // Midtrans order ID
+  paymentStatus   String?         // paid, unpaid, settlement, denied, cancel, pending
+  paymentMethod   String?         // credit_card, bank_transfer, e_wallet, bnpl
+  transactionId   String?         // Midtrans transaction ID
+  paidAt          DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId String
+  planId   String?
+  tenant   Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plan     SubscriptionPlan?  @relation(fields: [planId], references: [id])
+
+  @@unique([tenantId])
+  @@index([status])
+  @@index([paymentOrderId])
+}
+
+// Inventory model
+model Inventory {
+  id          String   @id @default(cuid())
+  kode        String
+  nama        String
+  kategori    String
+  satuan      String   // satuan beli (Roll, Liter, Botol, Pcs, dll)
+  satuanPakai String?  // satuan operasional (Meter, ml, Gram, dll) — null = sama dengan satuan
+  isiPerUnit  Float?   // konversi: 1 satuan beli = berapa satuan pakai (mis. 1 Roll = 15 Meter)
+  stok        Float    @default(0)  // dalam satuan PAKAI jika ada konversi, else satuan beli
+  masuk       Float    @default(0)
+  keluar      Float    @default(0)
+  stokMin     Float    @default(0)
+  hargaSatuan Decimal  @default(0)  // harga per satuan BELI (legacy, fallback jika belum ada batch)
+  pemasok     String?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenantId         String
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  usedInServices   ServiceMaterial[]
+  logs             InventoryLog[]
+  batches          InventoryBatch[]
+
+  @@index([tenantId])
+}
+
+// InventoryBatch — satu batch per pembelian (PO receive atau stok awal)
+// Digunakan untuk FIFO HPP calculation
+model InventoryBatch {
+  id              String   @id @default(cuid())
+  // Qty dalam satuan PAKAI (sudah dikonversi). Contoh: beli 2 Roll PPF (isiPerUnit=15) → qtyAwal=30 Meter
+  qtyAwal         Float
+  qtySisa         Float    // berkurang setiap pekerjaan selesai pakai material ini
+  // Harga per satuan PAKAI. Contoh: beli Roll Rp 500.000, isiPerUnit=15 → hargaPerUnit=33.333
+  hargaPerUnit    Decimal
+  // Referensi asal batch
+  noPO            String?  // nomor PO sumber, null jika stok awal manual
+  pemasok         String?  // nama supplier saat beli
+  tanggal         DateTime @default(now())
+  isStokAwal      Boolean  @default(false) // true = batch pertama dari stok existing saat migrasi
+  createdAt       DateTime @default(now())
+
+  inventoryId     String
+  inventory       Inventory @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+  tenantId        String
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([inventoryId])
+  @@index([tenantId])
+  @@index([createdAt]) // FIFO sort by createdAt ASC
+}
+
+// Supplier model
+model Supplier {
+  id        String   @id @default(cuid())
+  nama      String
+  kontak    String?
+  phone     String?
+  email     String?
+  alamat    String?
+  kategori  String?
+  status    String   @default("aktif")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+}
+
+// PurchaseOrder model
+model PurchaseOrder {
+  id           String   @id @default(cuid())
+  noPO         String
+  supplierName String?
+  status       String   @default("draft")  // draft, ordered, received, cancelled
+  orderDate    DateTime
+  totalAmount  Decimal  @default(0)
+  notes        String?
+  items        String?  // JSON: [{nama, qty, satuan, harga}]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([status])
+}
+
+// Expense model
+model Expense {
+  id         String   @id @default(cuid())
+  tanggal    DateTime
+  kategori   String
+  keterangan String
+  pemasok    String?
+  refPO      String?
+  jumlah     Decimal
+  dicatat    String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([tanggal])
+}
+
+// ServiceMaterial model — BOM (Bill of Materials) per layanan
+model ServiceMaterial {
+  id          String   @id @default(cuid())
+  qty         Decimal  @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workshopId  String
+  inventoryId String
+  tenantId    String
+
+  workshop    Workshop  @relation(fields: [workshopId], references: [id], onDelete: Cascade)
+  inventory   Inventory @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([workshopId, inventoryId])
+  @@index([tenantId])
+  @@index([workshopId])
+}
+
+// Teknisi model
+model Teknisi {
+  id         String   @id @default(cuid())
+  name       String
+  phone      String?
+  spesialis  String?  // JSON array: ["Detailing","PPF"]
+  status     String   @default("aktif") // aktif, cuti, nonaktif
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([status])
+}
+
+// Warranty model - garansi per servis per pelanggan
+model Warranty {
+  id           String   @id @default(cuid())
+  code         String   @unique  // kode unik garansi, mis. WR-20260503-XXXX
+  startDate    DateTime
+  endDate      DateTime
+  status       String   @default("active") // active, expired, void
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  registrationId String  @unique
+  workshopId     String
+  customerId     String
+  tenantId       String
+
+  registration   Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  workshop       Workshop     @relation(fields: [workshopId], references: [id], onDelete: Cascade)
+  customer       Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  tenant         Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([customerId])
+  @@index([status])
+}
+
+// TenantSetting model - key-value store for per-tenant configuration
+model TenantSetting {
+  id        String   @id @default(cuid())
+  key       String
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, key])
+  @@index([tenantId])
+}
+
+// InventoryLog model - audit trail setiap perubahan stok
+model InventoryLog {
+  id          String   @id @default(cuid())
+  type        String   // masuk | keluar | koreksi | po_terima | service_pakai
+  qty         Float
+  stokBefore  Float
+  stokAfter   Float
+  keterangan  String?  // e.g. "PO-260510-011", "Layanan: Full Detailing"
+  createdAt   DateTime @default(now())
+
+  inventoryId String
+  inventory   Inventory @relation(fields: [inventoryId], references: [id], onDelete: Cascade)
+  tenantId    String
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([inventoryId])
+  @@index([tenantId])
+  @@index([createdAt])
+}
+
+// Platform Settings model - key-value store for platform-level configuration (SMTP, etc.)
+model PlatformSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

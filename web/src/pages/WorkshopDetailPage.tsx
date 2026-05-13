@@ -58,7 +58,7 @@ export default function WorkshopDetailPage() {
     setRegistering(true)
     try {
       await registrationsAPI.create({
-        userId: user.id,
+        customerId: user.id,
         workshopId: workshop.id,
         tenantId: tenant.id,
       })

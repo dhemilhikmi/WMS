@@ -2,12 +2,12 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml ./
-RUN npm install -g pnpm && pnpm install --frozen-lockfile
+COPY package*.json ./
+RUN npm ci
 
 COPY . .
 
-RUN pnpm build && pnpm prisma generate
+RUN npm run prisma:generate && npm run build
 
 EXPOSE 3000
 

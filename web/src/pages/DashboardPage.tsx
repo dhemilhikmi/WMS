@@ -2,199 +2,303 @@ import { useState, useEffect } from 'react'
 import { workshopsAPI, registrationsAPI } from '../services/api'
 import { useAuth } from '../context/AuthContext'
 
-interface Registration {
+interface Reg {
   id: string
   status: string
+  scheduledDate?: string
   createdAt: string
-  workshop: { id: string; title: string; startDate: string }
-  user: { id: string; name: string; email: string }
+  updatedAt: string
+  notes?: string
+  vehicleName?: string
+  customer: { id: string; name: string; phone: string }
+  workshop: { id: string; title: string; duration?: number }
+}
+
+function formatDuration(minutes: number): string {
+  if (minutes < 1) return '< 1 menit'
+  if (minutes < 60) return `${Math.round(minutes)} menit`
+  const h = Math.floor(minutes / 60)
+  const m = Math.round(minutes % 60)
+  if (h < 24) return m > 0 ? `${h} jam ${m} menit` : `${h} jam`
+  const d = Math.floor(h / 24)
+  const rh = h % 24
+  return rh > 0 ? `${d} hari ${rh} jam` : `${d} hari`
+}
+
+function getSLAColor(avgMinutes: number): string {
+  if (avgMinutes <= 120) return '#16a34a'   // ≤ 2 jam: hijau
+  if (avgMinutes <= 480) return '#f59e0b'   // ≤ 8 jam: kuning
+  return '#dc2626'                           // > 8 jam: merah
 }
 
 export default function DashboardPage() {
-  const { user, tenant } = useAuth()
+  const { tenant } = useAuth()
   const [workshops, setWorkshops] = useState<any[]>([])
-  const [registrations, setRegistrations] = useState<Registration[]>([])
+  const [registrations, setRegistrations] = useState<Reg[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    fetchDashboardData()
-  }, [tenant?.id])
+  useEffect(() => { fetchDashboardData() }, [tenant?.id])
 
   const fetchDashboardData = async () => {
     if (!tenant?.id) return
-
     try {
       setLoading(true)
-      const [workshopsRes, registrationsRes] = await Promise.all([
+      const [wsRes, regRes] = await Promise.all([
         workshopsAPI.list(tenant.id),
         registrationsAPI.list(tenant.id),
       ])
-
-      setWorkshops(workshopsRes.data.data || [])
-      setRegistrations(registrationsRes.data.data || [])
+      setWorkshops(wsRes.data.data || [])
+      setRegistrations(regRes.data.data || [])
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to fetch dashboard data')
+      setError(err.response?.data?.message || 'Gagal memuat data dashboard')
     } finally {
       setLoading(false)
     }
   }
 
+  // SLA calculation — hanya registrasi completed yang punya scheduledDate
+  const completedRegs = registrations.filter(
+    r => r.status === 'completed' && r.scheduledDate
+  )
+  const durations = completedRegs.map(r => {
+    const start = new Date(r.scheduledDate!).getTime()
+    const end = new Date(r.updatedAt).getTime()
+    return (end - start) / 60000 // in minutes
+  }).filter(d => d > 0 && d < 60 * 24 * 30) // abaikan data aneh (> 30 hari)
+
+  const avgMinutes = durations.length > 0
+    ? durations.reduce((a, b) => a + b, 0) / durations.length
+    : 0
+  const minMinutes = durations.length > 0 ? Math.min(...durations) : 0
+  const maxMinutes = durations.length > 0 ? Math.max(...durations) : 0
+  const slaColor = getSLAColor(avgMinutes)
+
+  // SLA per layanan
+  const slaByService: Record<string, { title: string; durations: number[] }> = {}
+  completedRegs.forEach(r => {
+    const dur = (new Date(r.updatedAt).getTime() - new Date(r.scheduledDate!).getTime()) / 60000
+    if (dur <= 0 || dur > 60 * 24 * 30) return
+    if (!slaByService[r.workshop.id]) slaByService[r.workshop.id] = { title: r.workshop.title, durations: [] }
+    slaByService[r.workshop.id].durations.push(dur)
+  })
+  const slaRows = Object.values(slaByService).map(s => ({
+    title: s.title,
+    avg: s.durations.reduce((a, b) => a + b, 0) / s.durations.length,
+    count: s.durations.length,
+  })).sort((a, b) => a.avg - b.avg)
+
   const stats = {
-    totalWorkshops: workshops.length,
-    totalRegistrations: registrations.length,
-    activeWorkshops: workshops.filter((w) => w.status === 'published').length,
-    completedWorkshops: workshops.filter((w) => w.status === 'completed').length,
-    userRegistrations: registrations.filter((r) => r.user.id === user?.id)
-      .length,
+    total: registrations.length,
+    pending: registrations.filter(r => r.status === 'pending').length,
+    confirmed: registrations.filter(r => r.status === 'confirmed').length,
+    completed: registrations.filter(r => r.status === 'completed').length,
+    cancelled: registrations.filter(r => r.status === 'cancelled').length,
   }
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('id-ID')
-  }
+  const recentCompleted = [...registrations]
+    .filter(r => r.status === 'completed')
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+    .slice(0, 5)
 
-  if (loading) {
-    return (
-      <div className="max-w-7xl mx-auto px-4 py-12 text-center">
-        <p className="text-gray-600">Loading dashboard...</p>
-      </div>
-    )
-  }
+  // Layanan aktif yang melebihi estimasi durasi paket
+  const now = Date.now()
+  const overdueActive = registrations
+    .filter(r => ['in_progress', 'confirmed'].includes(r.status))
+    .map(r => {
+      // duration dari API (kalau server sudah restart) atau dari workshops state
+      const wsData = workshops.find((w: any) => w.id === r.workshop.id)
+      const duration: number | null = r.workshop.duration ?? wsData?.duration ?? null
+      if (!duration) return null
+      const elapsed = (now - new Date(r.createdAt).getTime()) / 60000
+      const overBy = elapsed - duration
+      return { ...r, elapsed, duration, overBy }
+    })
+    .filter((r): r is NonNullable<typeof r> => r !== null && r.overBy > 0)
+    .sort((a, b) => b.overBy - a.overBy)
+
+  if (loading) return (
+    <div className="flex h-64 items-center justify-center">
+      <p className="text-[13px] text-[#aaa]">Memuat dashboard...</p>
+    </div>
+  )
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-12">
-      <h1 className="text-3xl font-bold mb-8">Dashboard</h1>
+    <div className="p-6 max-w-5xl mx-auto space-y-6">
+      <h1 className="font-display text-xl font-bold text-ink">Dashboard</h1>
 
       {error && (
-        <div className="mb-6 p-4 bg-red-100 text-red-700 rounded-lg">
-          {error}
+        <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{error}</div>
+      )}
+
+      {/* Banner overdue */}
+      {overdueActive.length > 0 && (
+        <div className="rounded-xl border border-[#fecaca] bg-[#fef2f2] px-5 py-4">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-lg">⚠️</span>
+            <p className="text-sm font-bold text-[#dc2626]">
+              {overdueActive.length} Layanan Melebihi Estimasi Waktu
+            </p>
+          </div>
+          <div className="space-y-2">
+            {overdueActive.map(r => (
+              <div key={r.id} className="flex items-center justify-between bg-white rounded-lg px-4 py-2.5 border border-[#fecaca]">
+                <div>
+                  <p className="text-[13px] font-semibold text-[#111]">
+                    {r.customer.name}
+                    {r.vehicleName ? <span className="text-[#888] font-normal"> · {r.vehicleName}</span> : null}
+                  </p>
+                  <p className="text-[11px] text-[#888]">{r.workshop.title}</p>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <p className="text-[12px] font-bold text-[#dc2626]">
+                    +{formatDuration(r.overBy)} terlambat
+                  </p>
+                  <p className="text-[10px] text-[#aaa]">
+                    Estimasi {formatDuration(r.duration)} · Sudah {formatDuration(r.elapsed)}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
-        <div className="bg-white p-6 rounded-lg shadow hover:shadow-lg transition">
-          <p className="text-gray-600 text-sm">Total Workshops</p>
-          <p className="text-3xl font-bold text-blue-600">{stats.totalWorkshops}</p>
+      {/* Stats row */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="rounded-xl border border-[#e2e8f0] bg-white p-4">
+          <p className="text-[11px] text-[#888] font-semibold uppercase tracking-wide">Total</p>
+          <p className="text-3xl font-black text-[#111] mt-1">{stats.total}</p>
         </div>
-        <div className="bg-white p-6 rounded-lg shadow hover:shadow-lg transition">
-          <p className="text-gray-600 text-sm">Active Workshops</p>
-          <p className="text-3xl font-bold text-green-600">
-            {stats.activeWorkshops}
-          </p>
+        <div className="rounded-xl border border-[#fde68a] bg-[#fffbeb] p-4">
+          <p className="text-[11px] text-[#92400e] font-semibold uppercase tracking-wide">Menunggu</p>
+          <p className="text-3xl font-black text-[#f59e0b] mt-1">{stats.pending + stats.confirmed}</p>
         </div>
-        <div className="bg-white p-6 rounded-lg shadow hover:shadow-lg transition">
-          <p className="text-gray-600 text-sm">Completed</p>
-          <p className="text-3xl font-bold text-purple-600">
-            {stats.completedWorkshops}
-          </p>
+        <div className="rounded-xl border border-[#bbf7d0] bg-[#f0fdf4] p-4">
+          <p className="text-[11px] text-[#166534] font-semibold uppercase tracking-wide">Selesai</p>
+          <p className="text-3xl font-black text-[#16a34a] mt-1">{stats.completed}</p>
         </div>
-        <div className="bg-white p-6 rounded-lg shadow hover:shadow-lg transition">
-          <p className="text-gray-600 text-sm">Total Registrations</p>
-          <p className="text-3xl font-bold text-orange-600">
-            {stats.totalRegistrations}
-          </p>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow hover:shadow-lg transition">
-          <p className="text-gray-600 text-sm">Your Registrations</p>
-          <p className="text-3xl font-bold text-indigo-600">
-            {stats.userRegistrations}
-          </p>
+        <div className="rounded-xl border border-[#e2e8f0] bg-white p-4">
+          <p className="text-[11px] text-[#888] font-semibold uppercase tracking-wide">Dibatalkan</p>
+          <p className="text-3xl font-black text-[#dc2626] mt-1">{stats.cancelled}</p>
         </div>
       </div>
 
-      {/* My Registrations */}
-      <div className="bg-white rounded-lg shadow p-6 mb-8">
-        <h2 className="text-2xl font-bold mb-6">Your Registrations</h2>
+      {/* SLA Card */}
+      <div className="rounded-xl border border-[#e2e8f0] bg-white p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <span className="text-lg">⏱</span>
+          <h2 className="text-sm font-bold text-[#111]">SLA — Waktu Pengerjaan</h2>
+          <span className="ml-auto text-[11px] text-[#aaa]">
+            {durations.length > 0 ? `${durations.length} pekerjaan · waktu kalender` : 'Belum ada data'}
+          </span>
+        </div>
 
-        {stats.userRegistrations === 0 ? (
-          <p className="text-gray-600 text-center py-8">
-            You haven't registered for any workshops yet.
+        {durations.length === 0 ? (
+          <p className="text-center text-[13px] text-[#aaa] py-6">
+            Belum ada data — tandai pekerjaan sebagai <strong>Selesai</strong> untuk mulai melacak SLA.
           </p>
         ) : (
-          <div className="space-y-4">
-            {registrations
-              .filter((r) => r.user.id === user?.id)
-              .map((registration) => (
-                <div
-                  key={registration.id}
-                  className="flex justify-between items-center p-4 border rounded-lg hover:bg-gray-50"
-                >
-                  <div>
-                    <h3 className="font-semibold text-lg">
-                      {registration.workshop.title}
-                    </h3>
-                    <p className="text-gray-600 text-sm">
-                      📅 {formatDate(registration.workshop.startDate)}
+          <>
+            {/* Main metric */}
+            <div className="flex items-end gap-4 mb-5">
+              <div>
+                <p className="text-[11px] text-[#888] mb-0.5">Rata-rata</p>
+                <p className="text-4xl font-black" style={{ color: slaColor }}>
+                  {formatDuration(avgMinutes)}
+                </p>
+              </div>
+              <div className="flex gap-6 pb-1">
+                <div>
+                  <p className="text-[10px] text-[#aaa]">Tercepat</p>
+                  <p className="text-[13px] font-bold text-[#16a34a]">{formatDuration(minMinutes)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-[#aaa]">Terlama</p>
+                  <p className="text-[13px] font-bold text-[#dc2626]">{formatDuration(maxMinutes)}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Progress bar — posisi rata-rata vs max */}
+            {maxMinutes > 0 && (
+              <div className="mb-5">
+                <div className="h-2 rounded-full bg-[#f1f5f9] overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{ width: `${Math.min(100, (avgMinutes / maxMinutes) * 100)}%`, backgroundColor: slaColor }}
+                  />
+                </div>
+                <div className="flex justify-between mt-1">
+                  <span className="text-[10px] text-[#aaa]">0</span>
+                  <span className="text-[10px] text-[#aaa]">{formatDuration(maxMinutes)}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Per service breakdown */}
+            {slaRows.length > 0 && (
+              <div className="border-t border-[#f1f5f9] pt-4 space-y-2">
+                <p className="text-[11px] font-semibold text-[#888] uppercase tracking-wide mb-3">Per Layanan</p>
+                {slaRows.map(row => (
+                  <div key={row.title} className="flex items-center gap-3">
+                    <p className="text-[12px] text-[#333] w-40 truncate flex-shrink-0">{row.title}</p>
+                    <div className="flex-1 h-1.5 rounded-full bg-[#f1f5f9] overflow-hidden">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${Math.min(100, (row.avg / maxMinutes) * 100)}%`,
+                          backgroundColor: getSLAColor(row.avg),
+                        }}
+                      />
+                    </div>
+                    <p className="text-[12px] font-semibold text-[#555] w-24 text-right flex-shrink-0">
+                      {formatDuration(row.avg)}
+                    </p>
+                    <p className="text-[10px] text-[#aaa] w-12 text-right flex-shrink-0">
+                      {row.count}x
                     </p>
                   </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Recent completed */}
+      {recentCompleted.length > 0 && (
+        <div className="rounded-xl border border-[#e2e8f0] bg-white p-5">
+          <h2 className="text-sm font-bold text-[#111] mb-4">Pekerjaan Selesai Terakhir</h2>
+          <div className="space-y-2">
+            {recentCompleted.map(r => {
+              const dur = r.scheduledDate
+                ? (new Date(r.updatedAt).getTime() - new Date(r.scheduledDate).getTime()) / 60000
+                : null
+              return (
+                <div key={r.id} className="flex items-center justify-between py-2 border-b border-[#f8fafc] last:border-0">
+                  <div>
+                    <p className="text-[13px] font-semibold text-[#111]">{r.customer.name}</p>
+                    <p className="text-[11px] text-[#aaa]">{r.workshop.title}{r.vehicleName ? ` · ${r.vehicleName}` : ''}</p>
+                  </div>
                   <div className="text-right">
-                    <span
-                      className={`px-3 py-1 rounded-full text-sm font-medium ${
-                        registration.status === 'confirmed'
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-yellow-100 text-yellow-800'
-                      }`}
-                    >
-                      {registration.status}
-                    </span>
+                    {dur && dur > 0 && dur < 60 * 24 * 30 ? (
+                      <p className="text-[12px] font-bold" style={{ color: getSLAColor(dur) }}>
+                        {formatDuration(dur)}
+                      </p>
+                    ) : (
+                      <p className="text-[12px] text-[#aaa]">—</p>
+                    )}
+                    <p className="text-[10px] text-[#aaa]">
+                      {new Date(r.updatedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                    </p>
                   </div>
                 </div>
-              ))}
+              )
+            })}
           </div>
-        )}
-      </div>
-
-      {/* All Registrations */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-2xl font-bold mb-6">All Registrations</h2>
-
-        {registrations.length === 0 ? (
-          <p className="text-gray-600 text-center py-8">
-            No registrations yet.
-          </p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b">
-                <tr>
-                  <th className="px-4 py-3 text-left font-semibold">Workshop</th>
-                  <th className="px-4 py-3 text-left font-semibold">User</th>
-                  <th className="px-4 py-3 text-left font-semibold">Date</th>
-                  <th className="px-4 py-3 text-left font-semibold">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {registrations.slice(0, 10).map((registration) => (
-                  <tr key={registration.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3">{registration.workshop.title}</td>
-                    <td className="px-4 py-3">{registration.user.name}</td>
-                    <td className="px-4 py-3">
-                      {formatDate(registration.createdAt)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          registration.status === 'confirmed'
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-yellow-100 text-yellow-800'
-                        }`}
-                      >
-                        {registration.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {registrations.length > 10 && (
-              <p className="text-gray-600 text-center py-4 text-sm">
-                Showing 10 of {registrations.length} registrations
-              </p>
-            )}
-          </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }

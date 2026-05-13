@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" aria-label="WorkshopMU">
+  <rect x="14" y="14" width="172" height="172" rx="40" fill="#1E4FD8"/>
+  <path d="M30 64 L48 142 L72 88 L96 142 L114 64" fill="none" stroke="#FFFFFF" stroke-width="14" stroke-linecap="square" stroke-linejoin="miter"/>
+  <path d="M118 142 L118 64 L146 104 L174 64 L174 142" fill="none" stroke="#FF6A1F" stroke-width="14" stroke-linecap="square" stroke-linejoin="miter"/>
+</svg>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { registrationsAPI, workshopsAPI } from '../services/api'
+import { registrationsAPI } from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import { Link } from 'react-router-dom'
 

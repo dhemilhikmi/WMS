@@ -20,36 +20,36 @@ services:
 
   api:
     build:
-      context: .
-      dockerfile: api/Dockerfile
+      context: ./api
+      dockerfile: Dockerfile
     container_name: workshop_api
     ports:
       - "3000:3000"
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/workshop_system
       API_PORT: 3000
+      PORT: 3000
       NODE_ENV: development
-      JWT_SECRET: dev-secret-key
+      JWT_SECRET: dev-secret-key-change-before-production-32chars
+      PAYMENT_ENABLED: "false"
     depends_on:
       postgres:
         condition: service_healthy
     volumes:
-      - ./api/src:/app/api/src
+      - ./api/src:/app/src
     command: npm run dev
 
   web:
     build:
       context: web
       dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://localhost:3000
     container_name: workshop_web
     ports:
-      - "3001:3001"
-    environment:
-      REACT_APP_API_URL: http://localhost:3000
+      - "3001:3000"
     depends_on:
       - api
-    volumes:
-      - ./web/src:/app/src
 
 volumes:
   postgres_data:

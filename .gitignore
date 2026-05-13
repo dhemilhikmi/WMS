@@ -6,6 +6,7 @@ node_modules/
 # Testing
 coverage/
 .nyc_output/
+web/qa-screenshots/
 
 # Production
 build/
@@ -15,6 +16,8 @@ out/
 
 # Misc
 .DS_Store
+backups/
+api/backups/
 .env
 .env.local
 .env.*.local

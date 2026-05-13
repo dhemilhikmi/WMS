@@ -11,7 +11,7 @@ export default function Layout() {
           <div className="flex justify-between h-16">
             <div className="flex items-center">
               <Link to="/" className="text-2xl font-bold text-blue-600">
-                WMS
+                WorkshopMu
               </Link>
               {isAuthenticated && tenant && (
                 <span className="ml-6 text-sm text-gray-600">
@@ -20,17 +20,40 @@ export default function Layout() {
               )}
             </div>
             <div className="flex items-center space-x-8">
-              <Link to="/" className="text-gray-700 hover:text-gray-900">
-                Home
-              </Link>
+              {!isAuthenticated && (
+                <Link to="/" className="text-gray-700 hover:text-gray-900">
+                  Home
+                </Link>
+              )}
               {isAuthenticated && (
                 <>
-                  <Link to="/workshops" className="text-gray-700 hover:text-gray-900">
-                    Workshops
-                  </Link>
-                  <Link to="/dashboard" className="text-gray-700 hover:text-gray-900">
-                    Dashboard
-                  </Link>
+                  {user?.role === 'superadmin' ? (
+                    <>
+                      <Link to="/superadmin" className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700 font-bold">
+                        Dashboard
+                      </Link>
+                      <Link to="/superadmin/workshops" className="text-gray-700 hover:text-gray-900">
+                        Workshops
+                      </Link>
+                      <Link to="/superadmin/users" className="text-gray-700 hover:text-gray-900">
+                        Users
+                      </Link>
+                      <Link to="/superadmin/settings" className="text-gray-700 hover:text-gray-900">
+                        Settings
+                      </Link>
+                    </>
+                  ) : (
+                    <>
+                      <Link to="/dashboard" className="text-gray-700 hover:text-gray-900">
+                        Dashboard
+                      </Link>
+                      {user?.role === 'admin' || user?.role === 'moderator' ? (
+                        <Link to="/admin/dashboard" className="bg-purple-600 text-white px-3 py-1 rounded text-sm hover:bg-purple-700">
+                          Admin
+                        </Link>
+                      ) : null}
+                    </>
+                  )}
                 </>
               )}
               <div className="flex items-center space-x-4 border-l pl-8">
@@ -72,7 +95,7 @@ export default function Layout() {
 
       <footer className="bg-gray-800 text-white py-8 mt-12">
         <div className="max-w-7xl mx-auto px-4 text-center">
-          <p>&copy; 2024 Workshop Management System. All rights reserved.</p>
+          <p>&copy; 2024 WorkshopMu. All rights reserved.</p>
         </div>
       </footer>
     </div>

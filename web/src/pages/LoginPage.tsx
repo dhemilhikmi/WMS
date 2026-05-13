@@ -1,14 +1,17 @@
 import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { authAPI } from '../services/api'
 import { useAuth } from '../context/AuthContext'
 
 export default function LoginPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { login } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [emailNotVerified, setEmailNotVerified] = useState('')
+  const [resendLoading, setResendLoading] = useState(false)
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -21,46 +24,97 @@ export default function LoginPage() {
       const { data: userData } = response.data
 
       login(userData.user, userData.tenant, userData.token)
-      navigate('/workshops')
+      if (userData.user.role === 'superadmin') {
+        navigate('/superadmin/dashboard')
+      } else if (userData.user.role === 'admin' || userData.user.role === 'moderator') {
+        navigate('/admin/dashboard')
+      } else {
+        navigate('/dashboard')
+      }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Login failed')
+      if (err.response?.data?.code === 'EMAIL_NOT_VERIFIED') {
+        setEmailNotVerified(err.response?.data?.email || email)
+        setError(err.response?.data?.message)
+      } else {
+        setError(err.response?.data?.message || 'Login failed')
+      }
     } finally {
       setLoading(false)
     }
   }
 
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="bg-white p-8 rounded-lg shadow w-full max-w-md">
-        <h2 className="text-2xl font-bold mb-6 text-center">Login</h2>
+  const handleResendVerification = async () => {
+    if (!emailNotVerified) return
+    setResendLoading(true)
+    try {
+      await authAPI.resendVerification(emailNotVerified)
+      navigate(`/email-sent?email=${encodeURIComponent(emailNotVerified)}`)
+    } catch (err: any) {
+      console.error('Resend error:', err)
+    } finally {
+      setResendLoading(false)
+    }
+  }
 
-        {error && (
-          <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm">
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-wm-bg">
+      <div className="bg-white p-8 rounded-wm-xl shadow-wm-lg w-full max-w-md">
+
+        {/* Logo + wordmark */}
+        <div className="flex flex-col items-center gap-3 mb-8">
+          <img src="/workshopmu-logo.svg" alt="WorkshopMU" className="h-12 w-12" />
+          <span className="wm-wordmark text-2xl">
+            Workshop<span className="mu">MU</span>
+          </span>
+        </div>
+
+        {searchParams.get('registered') === 'true' && (
+          <div className="mb-4 p-3 bg-green-100 text-green-700 rounded-wm-md text-sm">
+            Registration successful! You can now log in.
+          </div>
+        )}
+
+        {error && !emailNotVerified && (
+          <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-wm-md text-sm">
             {error}
+          </div>
+        )}
+
+        {emailNotVerified && error && (
+          <div className="mb-4 p-3 bg-yellow-100 text-yellow-800 rounded-wm-md text-sm">
+            <p className="font-medium mb-2">{error}</p>
+            <button
+              type="button"
+              onClick={handleResendVerification}
+              disabled={resendLoading}
+              className="text-yellow-800 underline hover:no-underline disabled:opacity-50"
+            >
+              {resendLoading ? 'Sending...' : 'Resend verification email'}
+            </button>
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <label className="block text-sm font-semibold text-ink-2 mb-1.5">Email</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-2.5 border border-wm-line rounded-wm-md text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition"
               placeholder="you@example.com"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+            <label className="block text-sm font-semibold text-ink-2 mb-1.5">Password</label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-2.5 border border-wm-line rounded-wm-md text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition"
               placeholder="••••••••"
             />
           </div>
@@ -68,14 +122,14 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50"
+            className="w-full bg-brand text-white py-2.5 rounded-wm-md hover:bg-brand-600 font-semibold text-sm disabled:opacity-50 transition"
           >
-            {loading ? 'Signing in...' : 'Sign In'}
+            {loading ? 'Masuk...' : 'Masuk'}
           </button>
         </form>
 
-        <p className="text-center text-gray-600 mt-4">
-          Don't have an account? <Link to="/register" className="text-blue-600 hover:underline">Sign up</Link>
+        <p className="text-center text-ink-3 text-sm mt-5">
+          Belum punya akun? <Link to="/register" className="text-brand font-semibold hover:underline">Daftar</Link>
         </p>
       </div>
     </div>

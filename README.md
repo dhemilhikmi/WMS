@@ -161,7 +161,7 @@ API_PORT=3000
 API_URL=http://localhost:3000
 
 # Frontend
-REACT_APP_API_URL=http://localhost:3000
+VITE_API_URL=http://localhost:3000
 
 # Multi-Tenancy
 MAIN_DOMAIN=localhost:3000
