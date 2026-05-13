@@ -9,6 +9,7 @@ export default function LoginPage() {
   const { login } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [emailNotVerified, setEmailNotVerified] = useState('')
   const [resendLoading, setResendLoading] = useState(false)
@@ -20,7 +21,7 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const response = await authAPI.login({ email, password })
+      const response = await authAPI.login({ email: email.trim(), password })
       const { data: userData } = response.data
 
       login(userData.user, userData.tenant, userData.token)
@@ -116,7 +117,7 @@ export default function LoginPage() {
           <div>
             <label className="block text-sm font-semibold text-ink-2 mb-1.5">Password</label>
             <input
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -124,6 +125,14 @@ export default function LoginPage() {
               placeholder="••••••••"
             />
           </div>
+
+          <button
+            type="button"
+            onClick={() => setShowPassword(p => !p)}
+            className="-mt-2 text-left text-xs font-semibold text-brand"
+          >
+            {showPassword ? 'Sembunyikan password' : 'Tampilkan password'}
+          </button>
 
           <button
             type="submit"
